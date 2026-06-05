@@ -4,15 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Footmarket | Sélections Coupe du Monde</title>
+    <!-- Tailwind CSS pour le design -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse pour lire les CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Police Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-    </style>
+    <style>body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }</style>
 </head>
 <body class="text-slate-900 antialiased">
 
+    <!-- BARRE DE NAVIGATION -->
     <nav class="bg-white border-b border-slate-100 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
@@ -32,6 +34,7 @@
         </div>
     </nav>
 
+    <!-- SECTION PRINCIPALE -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="mb-8 bg-slate-950 text-white rounded-2xl p-8 md:p-12 relative overflow-hidden shadow-md">
             <div class="relative z-10 max-w-lg">
@@ -42,6 +45,7 @@
         </div>
 
         <div class="flex flex-col lg:flex-row gap-8">
+            <!-- FILTRES LATERAUX -->
             <aside class="w-full lg:w-64 flex-shrink-0">
                 <div class="bg-white p-6 rounded-xl border border-slate-100 sticky top-24 shadow-sm">
                     <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Filtrer par Pays</h2>
@@ -54,6 +58,7 @@
                 </div>
             </aside>
 
+            <!-- GRILLE DES JOUEURS -->
             <section class="flex-1">
                 <div class="flex justify-between items-center mb-6">
                     <p class="text-sm text-slate-500"><span id="joueurCount" class="font-bold text-slate-950">0</span> joueurs trouvés</p>
@@ -65,18 +70,19 @@
                 </div>
 
                 <div id="joueursGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                    <div class="col-span-full text-center py-12 text-slate-400 text-sm">Chargement des 48 sélections nationales...</div>
+                    <div class="col-span-full text-center py-12 text-slate-400 text-sm">Extraction des joueurs en cours...</div>
                 </div>
             </section>
         </div>
     </main>
 
+    <!-- LOGIQUE JAVASCRIPT AVANCÉE -->
     <script>
         let tousLesJoueurs = [];
         let paysSelectionne = 'Tous';
         let posteSelectionne = 'Tous';
 
-        // ✅ Voici la liste complète des 48 équipes de la Coupe du Monde
+        // Vos 48 fichiers exacts
         const fichiersPays = [
             "mexique", "afrique_du_sud", "coree_du_sud", "tchequie",
             "canada", "bosnie_herzegovine", "qatar", "suisse",
@@ -96,7 +102,26 @@
             chargerTousLesFichiersCSV();
         });
 
-        // Fonction qui va charger tous vos fichiers en même temps
+        // Fonction pour convertir les textes (ex: "1,6 M €") en vrais nombres pour pouvoir trier
+        function parserValeur(valStr) {
+            if (!valStr || typeof valStr !== 'string') return 0;
+            let cleanStr = valStr.replace(/[\s\xa0€]/g, '').trim(); 
+            if (cleanStr === '' || cleanStr === '-') return 0;
+            
+            let multiplier = 1;
+            if (cleanStr.toUpperCase().includes('K')) {
+                multiplier = 1000;
+                cleanStr = cleanStr.replace(/K/ig, '');
+            } else if (cleanStr.toUpperCase().includes('M')) {
+                multiplier = 1000000;
+                cleanStr = cleanStr.replace(/M/ig, '');
+            }
+            
+            cleanStr = cleanStr.replace(',', '.');
+            let num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num * multiplier;
+        }
+
         async function chargerTousLesFichiersCSV() {
             try {
                 const listePromises = fichiersPays.map(nomFichier => {
@@ -104,29 +129,78 @@
                         Papa.parse(`${nomFichier}.csv`, {
                             download: true,
                             header: true,
-                            dynamicTyping: true,
                             skipEmptyLines: true,
-                            complete: (results) => resolve(results.data),
-                            error: () => resolve([]) // Si un fichier manque ou a un nom différent, il est ignoré sans faire planter le reste
+                            complete: (results) => {
+                                let records = [];
+                                let currentStats = null;
+                                
+                                // Transforme "afrique_du_sud" en "Afrique Du Sud" pour l'affichage
+                                let paysFormatter = nomFichier.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+                                for (let row of results.data) {
+                                    let keys = Object.keys(row);
+                                    if (keys.length < 2) continue; // Sécurité
+                                    
+                                    // Détection dynamique des colonnes
+                                    let firstKey = keys[0]; 
+                                    let posKey = keys.find(k => k.includes('Position')) || keys[1];
+                                    let clubKey = keys.find(k => k.includes('Club')) || keys[2];
+                                    let numKey = keys.find(k => k.includes('Num')) || keys[3];
+                                    let ageKey = keys.find(k => k.includes('ge')) || keys[4];
+                                    let valKey = keys.find(k => k.includes('Valeur')) || keys[6];
+
+                                    let nameCol = row[firstKey];
+                                    let position = row[posKey];
+
+                                    // Étape 1 : Si on détecte une position, on sauvegarde les stats
+                                    if (position && String(position).trim() !== '') {
+                                        currentStats = {
+                                            Poste: position,
+                                            Club: row[clubKey] || '-',
+                                            SelectionNumero: row[numKey] || '?',
+                                            Age: row[ageKey] || '?',
+                                            ValeurText: row[valKey] || '-',
+                                            ValeurNum: parserValeur(row[valKey])
+                                        };
+                                    // Étape 2 : Si on a les stats et qu'on trouve un nom sur la ligne suivante
+                                    } else if (nameCol && String(nameCol).trim() !== '') {
+                                        if (currentStats) {
+                                            let nomAffiche = String(nameCol).trim();
+                                            // Nettoyage des textes parasites (comme les blessures) attachés aux noms
+                                            nomAffiche = nomAffiche.replace(/(Blessure|Suspendu|Carton).*/i, '').trim();
+
+                                            records.push({
+                                                Nom: nomAffiche,
+                                                Pays: paysFormatter,
+                                                Poste: currentStats.Poste,
+                                                Club: currentStats.Club,
+                                                Age: currentStats.Age,
+                                                SelectionNumero: currentStats.SelectionNumero,
+                                                ValeurText: (currentStats.ValeurText === '-' || !currentStats.ValeurText) ? 'N/A' : currentStats.ValeurText,
+                                                ValeurNum: currentStats.ValeurNum
+                                            });
+                                            currentStats = null; // On remet à zéro pour le prochain joueur
+                                        }
+                                    }
+                                }
+                                resolve(records);
+                            },
+                            error: () => resolve([])
                         });
                     });
                 });
 
-                // On attend que GitHub renvoie toutes les données
                 const résultatsParPays = await Promise.all(listePromises);
-                
-                // Fusion de tous les tableaux de joueurs en un seul
                 tousLesJoueurs = résultatsParPays.flat().filter(j => j && j.Nom);
 
                 genererFiltresPays();
                 genererFiltresPostes();
                 filtrerJoueurs();
             } catch (error) {
-                console.error("Erreur générale de chargement :", error);
+                console.error("Erreur de chargement :", error);
             }
         }
 
-        // Génère le menu des pays à gauche
         function genererFiltresPays() {
             const pays = ['Tous', ...new Set(tousLesJoueurs.map(j => j.Pays))].sort();
             const conteneur = document.getElementById('paysFilters');
@@ -140,7 +214,6 @@
             });
         }
 
-        // Génère le menu des postes (Gardien, Attaquant...) à gauche
         function genererFiltresPostes() {
             const postes = ['Tous', ...new Set(tousLesJoueurs.map(j => j.Poste))];
             const conteneur = document.getElementById('posteFilters');
@@ -154,14 +227,6 @@
             });
         }
 
-        // Met en forme la valeur financière
-        function formatValeur(num) {
-            if (!num || isNaN(num)) return "-";
-            if (num >= 1000000) return (num / 1000000) + ' M€';
-            return num.toLocaleString() + ' €';
-        }
-
-        // Affiche dynamiquement les fiches des joueurs
         function afficherJoueurs(liste) {
             const grid = document.getElementById('joueursGrid');
             document.getElementById('joueurCount').textContent = liste.length;
@@ -176,28 +241,28 @@
                 const carte = document.createElement('div');
                 carte.className = "bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 relative group";
                 carte.innerHTML = `
-                    <div class="absolute top-3 right-3 bg-slate-100 text-slate-700 font-bold text-xs w-7 h-7 rounded-full flex items-center justify-center z-10">
-                        N°${joueur.SelectionNumero || '?'}
+                    <div class="absolute top-3 right-3 bg-slate-100 text-slate-700 font-bold text-xs w-7 h-7 rounded-full flex items-center justify-center z-10 shadow-sm">
+                        N°${joueur.SelectionNumero}
                     </div>
                     <div class="p-5">
                         <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-slate-400 text-lg">
+                            <div class="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex-shrink-0 flex items-center justify-center font-bold text-emerald-600 text-lg">
                                 ${joueur.Nom ? joueur.Nom.charAt(0) : '?'}
                             </div>
                             <div>
-                                <span class="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">${joueur.Poste || 'Joueur'}</span>
+                                <span class="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">${joueur.Poste}</span>
                                 <h3 class="font-bold text-base text-slate-900 mt-0.5 leading-tight group-hover:text-emerald-600 transition-colors">${joueur.Nom}</h3>
-                                <p class="text-xs text-slate-500 font-medium">${joueur.Pays || '?'} • ${joueur.Age || '?'} ans</p>
+                                <p class="text-xs text-slate-500 font-medium">${joueur.Pays} • ${joueur.Age} ans</p>
                             </div>
                         </div>
                         <div class="mt-4 pt-3 border-t border-slate-50 flex justify-between items-center text-xs">
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Club</p>
-                                <p class="font-semibold text-slate-700">${joueur.Club || '-'}</p>
+                                <p class="font-semibold text-slate-700">${joueur.Club}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Valeur Marchande</p>
-                                <p class="font-extrabold text-slate-950 text-sm">${formatValeur(joueur.Valeur)}</p>
+                                <p class="font-extrabold text-slate-950 text-sm">${joueur.ValeurText}</p>
                             </div>
                         </div>
                     </div>
@@ -206,7 +271,6 @@
             });
         }
 
-        // Système de filtrage
         function filtrerJoueurs() {
             const recherche = document.getElementById('searchInput').value.toLowerCase();
             const tri = document.getElementById('sortSelect').value;
@@ -218,8 +282,8 @@
                 return matchPays && matchPoste && matchTexte;
             });
 
-            if (tri === "valeurDesc") resultats.sort((a, b) => (b.Valeur || 0) - (a.Valeur || 0));
-            if (tri === "valeurAsc") resultats.sort((a, b) => (a.Valeur || 0) - (b.Valeur || 0));
+            if (tri === "valeurDesc") resultats.sort((a, b) => b.ValeurNum - a.ValeurNum);
+            if (tri === "valeurAsc") resultats.sort((a, b) => a.ValeurNum - b.ValeurNum);
             if (tri === "nom") resultats.sort((a, b) => (a.Nom || "").localeCompare(b.Nom || ""));
 
             afficherJoueurs(resultats);
