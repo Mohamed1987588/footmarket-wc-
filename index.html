@@ -65,7 +65,7 @@
                 </div>
 
                 <div id="joueursGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                    <div class="col-span-full text-center py-12 text-slate-400 text-sm">Chargement des sélections nationales...</div>
+                    <div class="col-span-full text-center py-12 text-slate-400 text-sm">Chargement des 48 sélections nationales...</div>
                 </div>
             </section>
         </div>
@@ -76,14 +76,20 @@
         let paysSelectionne = 'Tous';
         let posteSelectionne = 'Tous';
 
-        // ⚠️ ATTENTION : Modifiez/Ajoutez ici le nom exact de vos 48 fichiers CSV !
-        // Respectez SCRUPULEUSEMENT les majuscules, accents ou tirets de vos fichiers en ligne.
+        // ✅ Voici la liste complète des 48 équipes de la Coupe du Monde
         const fichiersPays = [
-            "Cote_divoire", 
-            "Curaçao", 
-            "afrique_du_sud", 
-            "algerie"
-            // Ajoutez la suite de vos 48 fichiers ici en les séparant par des virgules...
+            "mexique", "afrique_du_sud", "coree_du_sud", "tchequie",
+            "canada", "bosnie_herzegovine", "qatar", "suisse",
+            "bresil", "maroc", "haiti", "ecosse",
+            "etats_unis", "paraguay", "australie", "turquie",
+            "allemagne", "Curaçao", "Cote_divoire", "equateur",
+            "pays_bas", "japon", "suede", "tunisie",
+            "belgique", "egypte", "iran", "nouvelle_zelande",
+            "espagne", "cap_vert", "arabie_saoudite", "uruguay",
+            "france", "senegal", "irak", "norvege",
+            "argentine", "algerie", "autriche", "jordanie",
+            "portugal", "rd_congo", "ouzbekistan", "colombie",
+            "angleterre", "croatie", "ghana", "panama"
         ];
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -95,14 +101,13 @@
             try {
                 const listePromises = fichiersPays.map(nomFichier => {
                     return new Promise((resolve) => {
-                        // Changement ici : le code cherche à la racine (.csv) et non plus dans data/
                         Papa.parse(`${nomFichier}.csv`, {
                             download: true,
                             header: true,
                             dynamicTyping: true,
                             skipEmptyLines: true,
                             complete: (results) => resolve(results.data),
-                            error: () => resolve([]) // Évite de bloquer tout le site si un fichier a une erreur de nom
+                            error: () => resolve([]) // Si un fichier manque ou a un nom différent, il est ignoré sans faire planter le reste
                         });
                     });
                 });
@@ -149,7 +154,7 @@
             });
         }
 
-        // Met en forme la valeur financière (ex: 180000000 devient 180 M€)
+        // Met en forme la valeur financière
         function formatValeur(num) {
             if (!num || isNaN(num)) return "-";
             if (num >= 1000000) return (num / 1000000) + ' M€';
@@ -169,4 +174,56 @@
 
             liste.forEach(joueur => {
                 const carte = document.createElement('div');
-                carte.className = "
+                carte.className = "bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 relative group";
+                carte.innerHTML = `
+                    <div class="absolute top-3 right-3 bg-slate-100 text-slate-700 font-bold text-xs w-7 h-7 rounded-full flex items-center justify-center z-10">
+                        N°${joueur.SelectionNumero || '?'}
+                    </div>
+                    <div class="p-5">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-slate-400 text-lg">
+                                ${joueur.Nom ? joueur.Nom.charAt(0) : '?'}
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">${joueur.Poste || 'Joueur'}</span>
+                                <h3 class="font-bold text-base text-slate-900 mt-0.5 leading-tight group-hover:text-emerald-600 transition-colors">${joueur.Nom}</h3>
+                                <p class="text-xs text-slate-500 font-medium">${joueur.Pays || '?'} • ${joueur.Age || '?'} ans</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-50 flex justify-between items-center text-xs">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Club</p>
+                                <p class="font-semibold text-slate-700">${joueur.Club || '-'}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Valeur Marchande</p>
+                                <p class="font-extrabold text-slate-950 text-sm">${formatValeur(joueur.Valeur)}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(carte);
+            });
+        }
+
+        // Système de filtrage
+        function filtrerJoueurs() {
+            const recherche = document.getElementById('searchInput').value.toLowerCase();
+            const tri = document.getElementById('sortSelect').value;
+            
+            let resultats = tousLesJoueurs.filter(j => {
+                const matchPays = (paysSelectionne === 'Tous' || j.Pays === paysSelectionne);
+                const matchPoste = (posteSelectionne === 'Tous' || j.Poste === posteSelectionne);
+                const matchTexte = (j.Nom && j.Nom.toLowerCase().includes(recherche)) || (j.Club && j.Club.toLowerCase().includes(recherche));
+                return matchPays && matchPoste && matchTexte;
+            });
+
+            if (tri === "valeurDesc") resultats.sort((a, b) => (b.Valeur || 0) - (a.Valeur || 0));
+            if (tri === "valeurAsc") resultats.sort((a, b) => (a.Valeur || 0) - (b.Valeur || 0));
+            if (tri === "nom") resultats.sort((a, b) => (a.Nom || "").localeCompare(b.Nom || ""));
+
+            afficherJoueurs(resultats);
+        }
+    </script>
+</body>
+</html>
