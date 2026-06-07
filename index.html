@@ -24,7 +24,6 @@
                 </div>
                 <div class="flex-1 max-w-md mx-8">
                     <div class="relative">
-                        <!-- NOUVEAU : Le texte explicatif de la barre de recherche est mis à jour -->
                         <input type="text" id="searchInput" oninput="filtrerJoueurs()" placeholder="Rechercher un joueur, un club, un pays..." class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-5 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
                         <div class="absolute left-3 top-2.5 text-slate-400">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -83,7 +82,6 @@
         let paysSelectionne = 'Tous';
         let posteSelectionne = 'Tous';
 
-        // Dictionnaire qui regroupe les acronymes en grandes familles
         const categoriesPostes = {
             "Gardiens": ["GA"],
             "Défenseurs": ["DC", "DD", "DG", "DLD", "DLG"],
@@ -92,16 +90,16 @@
             "Entraîneurs": ["Entraineur"]
         };
 
-        // Vos 48 fichiers exacts
+        // ✅ LISTE MISE À JOUR AVEC "usa" ET "cap_ver"
         const fichiersPays = [
             "mexique", "afrique_du_sud", "coree_du_sud", "tchequie",
-            "canada", "bosnie_Herzegovine", "qatar", "suisse",
-            "bresil", "maroc", "haiti", "escoss",
+            "canada", "bosnie_herzegovine", "qatar", "suisse",
+            "bresil", "maroc", "haiti", "ecosse",
             "usa", "paraguay", "australie", "turquie",
             "allemagne", "Curaçao", "Cote_divoire", "equateur",
             "pays_bas", "japon", "suede", "tunisie",
             "belgique", "egypte", "iran", "nouvelle_zelande",
-            "espagne", "cap_vert", "arabie_saoudite", "uruguay",
+            "espagne", "cap_ver", "arabie_saoudite", "uruguay",
             "france", "senegal", "irak", "norvege",
             "argentine", "algerie", "autriche", "jordanie",
             "portugal", "rd_congo", "ouzbekistan", "colombie",
@@ -112,7 +110,6 @@
             chargerTousLesFichiersCSV();
         });
 
-        // Convertit les textes de valeur (ex: "1,6 M €") en vrais nombres
         function parserValeur(valStr) {
             if (!valStr || typeof valStr !== 'string') return 0;
             let cleanStr = valStr.replace(/[\s\xa0€]/g, '').trim(); 
@@ -143,7 +140,10 @@
                             complete: (results) => {
                                 let records = [];
                                 let currentStats = null;
+                                
+                                // Amélioration du nommage (ex: "usa" devient "Usa", "cap_ver" devient "Cap Ver")
                                 let paysFormatter = nomFichier.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                if(nomFichier === "usa") paysFormatter = "USA";
 
                                 for (let row of results.data) {
                                     let keys = Object.keys(row);
@@ -292,7 +292,6 @@
                 const matchPays = (paysSelectionne === 'Tous' || j.Pays === paysSelectionne);
                 const matchPoste = (posteSelectionne === 'Tous' || correspondCategorie(j.Poste, posteSelectionne));
                 
-                // NOUVEAU : On cherche maintenant dans le Nom OU dans le Club OU dans le Pays
                 const matchTexte = 
                     (j.Nom && j.Nom.toLowerCase().includes(recherche)) || 
                     (j.Club && j.Club.toLowerCase().includes(recherche)) ||
